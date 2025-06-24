@@ -1,17 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# --- Configuration ---
 LOG_FILE="activity.log"
 ERROR_LOG="error.log"
-VERBOSE_LEVEL=1 # 0: silent, 1: normal, 2: verbose
+VERBOSE_LEVEL=1
 
-# --- Variables ---
 compteur=0
 
-# --- Functions ---
-
-# Function for logging messages
 log_message() {
   local type="$1"
   local message="$2"
@@ -43,7 +38,6 @@ log_message() {
   esac
 }
 
-# Function to display the menu
 display_menu() {
   log_message "verbose" "Affichage du menu principal."
   echo "==== Gestionnaire de Fichiers ===="
@@ -55,10 +49,9 @@ display_menu() {
   echo "=================================="
 }
 
-# Function to list files
 list_files() {
   log_message "info" "Tentative de listage des fichiers."
-  if ! ls -F ; then # Using -F for clarity (e.g., / for directories)
+  if ! ls -F ; then
     log_message "error" "Impossible de lister les fichiers."
     return 1
   fi
@@ -67,7 +60,6 @@ list_files() {
   return 0
 }
 
-# Function to create a file
 create_file() {
   read -rp "Nom du fichier à créer : " nom
   log_message "info" "Demande de création du fichier: '$nom'."
@@ -92,7 +84,6 @@ create_file() {
   return 0
 }
 
-# Function to delete a file
 delete_file() {
   read -rp "Nom du fichier à supprimer : " nom
   log_message "info" "Demande de suppression du fichier: '$nom'."
@@ -117,7 +108,6 @@ delete_file() {
   return 0
 }
 
-# Function to display file content
 display_file_content() {
   read -rp "Nom du fichier à afficher : " nom
   log_message "info" "Demande d'affichage du contenu du fichier: '$nom'."
@@ -142,8 +132,6 @@ display_file_content() {
   return 0
 }
 
-# --- Main Logic ---
-
 log_message "info" "Script de gestion de fichiers lancé."
 
 while true; do
@@ -166,5 +154,5 @@ while true; do
       echo "Choix invalide. Veuillez réessayer."
       ;;
   esac
-  echo # Newline for better readability
+  echo
 done
