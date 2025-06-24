@@ -1,88 +1,170 @@
 #!/bin/bash
-set -o errexit
-set -o nounset
-set -o pipefail
+set -euo pipefail
 
-LOG="log.txt"
-ERRLOG="error.log"
-VERBOSE=0
-ACTIONS=0
+# --- Configuration ---
+LOG_FILE="activity.log"
+ERROR_LOG="error.log"
+VERBOSE_LEVEL=1 # 0: silent, 1: normal, 2: verbose
 
-log() {
-  local level="$1" msg="$2"
-  [[ $level == "INFO" && $VERBOSE -ge 1 ]] && echo "$msg"
-  [[ $level == "DEBUG" && $VERBOSE -ge 2 ]] && echo "[DEBUG] $msg"
-  [[ $level == "INFO" ]] && echo "[INFO] $(date) - $msg" >> "$LOG"
-  [[ $level == "ERROR" ]] && { echo "[ERROR] $(date) - $msg" >> "$ERRLOG"; echo "Erreur : $msg" >&2; }
-}
+# --- Variables ---
+compteur=0
 
-help() {
-  echo "Utilisation : $0 [-v|-vv|--help|--version]"
-}
+# --- Functions ---
 
-# Parse arguments
-for arg in "$@"; do
-  case "$arg" in
-    -v) VERBOSE=1 ;;
-    -vv) VERBOSE=2 ;;
-    --help) help; exit 0 ;;
-    --version) echo "Version 2.0"; exit 0 ;;
-    *) log ERROR "Option invalide : $arg"; help; exit 1 ;;
+# Function for logging messages
+log_message() {
+  local type="$1"
+  local message="$2"
+  local timestamp
+  timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+
+  case "$type" in
+    "info")
+      if (( VERBOSE_LEVEL >= 1 )); then
+        echo "[$timestamp] INFO: $message" | tee -a "$LOG_FILE"
+      fi
+      ;;
+    "success")
+      if (( VERBOSE_LEVEL >= 1 )); then
+        echo "[$timestamp] SUCCESS: $message" | tee -a "$LOG_FILE"
+      fi
+      ;;
+    "verbose")
+      if (( VERBOSE_LEVEL >= 2 )); then
+        echo "[$timestamp] VERBOSE: $message" | tee -a "$LOG_FILE"
+      fi
+      ;;
+    "error")
+      echo "[$timestamp] ERROR: $message" | tee -a "$ERROR_LOG" >&2
+      ;;
+    *)
+      echo "[$timestamp] UNKNOWN LOG TYPE: $message" | tee -a "$ERROR_FILE" >&2
+      ;;
   esac
-done
+}
 
-log INFO "---- Nouvelle session ----"
-
-while true; do
-  echo "Menu :"
+# Function to display the menu
+display_menu() {
+  log_message "verbose" "Affichage du menu principal."
+  echo "==== Gestionnaire de Fichiers ===="
   echo "1) Lister fichiers"
   echo "2) Créer fichier"
   echo "3) Supprimer fichier"
-  echo "4) Afficher fichier"
+  echo "4) Afficher contenu fichier"
   echo "5) Quitter"
-  read -rp "Choix : " choix
+  echo "=================================="
+}
+
+# Function to list files
+list_files() {
+  log_message "info" "Tentative de listage des fichiers."
+  if ! ls -F ; then # Using -F for clarity (e.g., / for directories)
+    log_message "error" "Impossible de lister les fichiers."
+    return 1
+  fi
+  ((compteur++))
+  log_message "success" "Liste des fichiers affichée."
+  return 0
+}
+
+# Function to create a file
+create_file() {
+  read -rp "Nom du fichier à créer : " nom
+  log_message "info" "Demande de création du fichier: '$nom'."
+
+  if [[ -z "$nom" ]]; then
+    log_message "error" "Nom de fichier vide non autorisé."
+    return 1
+  fi
+
+  if [[ -e "$nom" ]]; then
+    log_message "error" "Le fichier '$nom' existe déjà. Annulation de la création."
+    return 1
+  fi
+
+  if ! touch "$nom"; then
+    log_message "error" "Échec de la création du fichier '$nom'."
+    return 1
+  fi
+
+  ((compteur++))
+  log_message "success" "Fichier '$nom' créé avec succès."
+  return 0
+}
+
+# Function to delete a file
+delete_file() {
+  read -rp "Nom du fichier à supprimer : " nom
+  log_message "info" "Demande de suppression du fichier: '$nom'."
+
+  if [[ -z "$nom" ]]; then
+    log_message "error" "Nom de fichier vide non autorisé."
+    return 1
+  fi
+
+  if [[ ! -f "$nom" ]]; then
+    log_message "error" "Le fichier '$nom' est introuvable ou n'est pas un fichier régulier. Annulation de la suppression."
+    return 1
+  fi
+
+  if ! rm "$nom"; then
+    log_message "error" "Échec de la suppression du fichier '$nom'."
+    return 1
+  fi
+
+  ((compteur++))
+  log_message "success" "Fichier '$nom' supprimé avec succès."
+  return 0
+}
+
+# Function to display file content
+display_file_content() {
+  read -rp "Nom du fichier à afficher : " nom
+  log_message "info" "Demande d'affichage du contenu du fichier: '$nom'."
+
+  if [[ -z "$nom" ]]; then
+    log_message "error" "Nom de fichier vide non autorisé."
+    return 1
+  fi
+
+  if [[ ! -f "$nom" ]]; then
+    log_message "error" "Le fichier '$nom' est introuvable ou n'est pas un fichier régulier. Annulation de l'affichage."
+    return 1
+  fi
+
+  log_message "verbose" "Affichage du contenu de '$nom' :"
+  if ! cat "$nom"; then
+    log_message "error" "Échec de l'affichage du contenu du fichier '$nom'."
+    return 1
+  fi
+  ((compteur++))
+  log_message "success" "Contenu du fichier '$nom' affiché."
+  return 0
+}
+
+# --- Main Logic ---
+
+log_message "info" "Script de gestion de fichiers lancé."
+
+while true; do
+  display_menu
+  read -rp "Votre choix : " choix
 
   case "$choix" in
-    1)
-      ls
-      log INFO "Liste des fichiers affichée"
-      ((ACTIONS++))
-      ;;
-    2)
-      read -rp "Nom : " f
-      [[ -z "$f" ]] && log ERROR "Nom vide" && continue
-      if [[ -e "$f" ]]; then
-        echo "Déjà existant"; log INFO "Création refusée pour '$f'"
-      else
-        touch "$f"
-        echo "Créé"; log INFO "Fichier '$f' créé"; ((ACTIONS++))
-      fi
-      ;;
-    3)
-      read -rp "Nom : " f
-      [[ -z "$f" ]] && log ERROR "Nom vide" && continue
-      if [[ -f "$f" ]]; then
-        rm "$f"
-        echo "Supprimé"; log INFO "Fichier '$f' supprimé"; ((ACTIONS++))
-      else
-        echo "Introuvable"; log ERROR "Suppression échouée pour '$f'"
-      fi
-      ;;
-    4)
-      read -rp "Nom : " f
-      [[ -z "$f" ]] && log ERROR "Nom vide" && continue
-      if [[ -f "$f" ]]; then
-        cat "$f"; log INFO "Fichier '$f' affiché"; ((ACTIONS++))
-      else
-        echo "Introuvable"; log ERROR "Affichage échoué pour '$f'"
-      fi
-      ;;
+    1) list_files ;;
+    2) create_file ;;
+    3) delete_file ;;
+    4) display_file_content ;;
     5)
-      echo "Actions totales : $ACTIONS"
-      log INFO "Session terminée avec $ACTIONS action(s)"
+      log_message "info" "Demande de sortie. Total des actions réussies: $compteur."
+      echo "Total des actions réussies : $compteur"
+      log_message "success" "Fermeture du script."
       exit 0
       ;;
-    *) echo "Mauvais choix"; log ERROR "Choix invalide : $choix" ;;
+    *)
+      log_message "error" "Choix '$choix' invalide. Veuillez sélectionner une option valide (1-5)."
+      echo "Choix invalide. Veuillez réessayer."
+      ;;
   esac
-  echo
+  echo # Newline for better readability
 done
